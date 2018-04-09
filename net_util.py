@@ -102,6 +102,7 @@ def train_net(net, opts):
 
     net.train()
     train_loss = 0
+    graph_loss = 0
     total_time = 0
     data_time = 0
     total = 0
@@ -127,11 +128,11 @@ def train_net(net, opts):
         outputs, feat = net(inputs)
         # loss = opts.criterion[0](feat, attribute)
         loss = opts.criterion[0](outputs, targets) + opts.criterion[1](feat, attribute)
-        if batch_idx % 100 == 0:
-            print('graph_loss: %.8f ' % opts.criterion[1](feat, attribute).data[0])
+        # if batch_idx % 100 == 0:
+        #     print('graph_loss: %.8f ' % opts.criterion[1](feat, attribute).data[0])
 
         train_loss += loss.data[0]
-
+        graph_loss += opts.criterion[1](feat, attribute).data[0]
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
@@ -143,10 +144,6 @@ def train_net(net, opts):
         total_time += (time.time() - end_time)
         end_time = time.time()
 
-        if opts.msg:
-                print('Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                      % (train_loss / (batch_idx + 1), 100. * correct / total, correct, total))
-
         opts.train_batch_logger.log({
             'epoch': (opts.epoch+1),
             'batch': batch_idx + 1,
@@ -156,7 +153,7 @@ def train_net(net, opts):
         })
 
     train_loss /= (batch_idx + 1)
-
+    graph_loss /= (batch_idx + 1)
     opts.train_epoch_logger.log({
         'epoch': (opts.epoch+1),
         'loss': train_loss,
@@ -165,8 +162,9 @@ def train_net(net, opts):
         'extra': extra / (batch_idx + 1)
     })
 
-    print('Loss: %.3f | Acc: %.3f%% (%d/%d), elasped time: %3.f seconds.'
-          % (train_loss, 100. * correct / total, correct, total, total_time))
+    print('Loss: %.3f| Graph Loss: %.3f | Acc: %.3f%% (%d/%d)'
+          % (train_loss, graph_loss, 100. * correct / total, correct, total))
+
     opts.train_accuracies.append(correct / total)
 
     opts.train_losses.append(train_loss)
@@ -191,6 +189,7 @@ def eval_net(net, opts):
 
     net.eval()
     eval_loss = 0
+    graph_loss = 0
     correct = 0
     total = 0
     total_time = 0
@@ -211,6 +210,7 @@ def eval_net(net, opts):
         # loss = opts.criterion[0](feat, attribute)
 
         eval_loss += loss.data[0]
+        graph_loss += opts.criterion[1](feat, attribute)
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
@@ -218,11 +218,8 @@ def eval_net(net, opts):
         total_time += (time.time() - end_time)
         end_time = time.time()
 
-        if opts.msg:
-            print('Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                  % (eval_loss / (batch_idx + 1), 100. * correct / total, correct, total))
-
     eval_loss /= (batch_idx + 1)
+    graph_loss /= (batch_idx + 1)
     eval_acc = correct / total
 
     if opts.testing:
@@ -260,7 +257,7 @@ def eval_net(net, opts):
         states['acc'] = eval_acc,
 
     if opts.__contains__('valid_losses'):
-        states['valid_losses']=opts.valid_losses
+        states['valid_losses'] = opts.valid_losses
     if opts.__contains__('test_losses'):
         states['test_losses'] = opts.test_losses
 
@@ -274,8 +271,8 @@ def eval_net(net, opts):
         save_file_path = os.path.join(opts.checkpoint_path, '_{}.pth'.format(opts.epoch))
         torch.save(states, save_file_path)
 
-    print('Loss: %.3f | Acc: %.3f%% (%d/%d), elasped time: %3.f seconds. Best Acc: %.3f%%'
-          % (eval_loss, 100. * correct / total, correct, total, total_time, opts.best_acc*100))
+    print('Loss: %.3f| Graph Loss: %.3f | Acc: %.3f%% (%d/%d), elasped time: %3.f seconds. Best Acc: %.3f%%'
+          % (eval_loss, graph_loss, 100. * correct / total, correct, total, total_time, opts.best_acc*100))
 
 
 class Logger(object):
